@@ -1,5 +1,5 @@
 document.head.appendChild(Object.assign(document.createElement("style"), { innerHTML: "#thumb,body{touch-action:none}body{user-select:none;height:100%}@media only screen and (max-device-width:480px){body{touch-action:manipulation}}.header,.rightbar{display:none!important}.rounded{border:none;border-radius:50%}[view|=hidden]{display:none}[view|=visible]{display:flex;justify-content:center;align-items:center}[float]{position:absolute}svg{fill:#ecf0f3cc;width:30px;height:auto}#kick svg{width:50%}" }));
-document.querySelector('.gameframe').contentWindow.document.head.appendChild(Object.assign(document.createElement("style"), { innerHTML: ".room-view,.roomlist-view{height:100%;margin-top:0}.game-view>.top-section,.room-view{margin-top:0}.settings-view{width:100%;max-height:none}.game-view>[data-hook=popups]{background-color:#1a212585}.disconnected-view .dialog,.disconnected-view .room-view>.container{width:450px}.create-room-view>.dialog,.room-view.create-room-view>.container{max-width:450px;width:100%}body{background:#1a2125}[data-hook=leave-btn]{background:#c13535!important}.file-btn,[data-hook=rec-btn]{display:none!important}h1{text-align:center}.room-view>.container>.header-btns{bottom:0;right:10px;top:auto}.room-view>.container{max-width:none;max-height:max-content}.room-view{position:absolute;width:100%}.roomlist-view>.dialog{max-width:max-content;max-height:max-content}.game-state-view .bar>.scoreboard{display:flex;align-items:center;margin-right:50px}.chatbox-view{position:absolute;left:15px;margin:0;top:10px;width:30%;pointer-events:none;font-size:1rem;display:contents}.chatbox-view-contents{flex-direction:column-reverse;background:0 0;pointer-events:none}.chatbox-view-contents>.input{margin-bottom:10px;pointer-events:auto}.chatbox-view-contents>.log{flex-direction:column;pointer-events:none;overflow-y:scroll;scrollbar-width:none}.settings-view .section.selected{display:flex;align-items:center}.log-contents{display:flex;flex-direction:column-reverse;text-shadow:1px 1px 5px #000000cc}.fade-out{opacity:0;transition:opacity 10s ease-out}thead tr{display:table-row!important}svg{width: 1em}.input-options{position: absolute;width: 100%;height: 100%;z-index: 20;background-color: #1a2125;}" }));
+document.querySelector('.gameframe').contentWindow.document.head.appendChild(Object.assign(document.createElement("style"), { innerHTML: ".room-view,.roomlist-view{height:100%;margin-top:0}.game-view>.top-section,.room-view{margin-top:0}.settings-view{width:100%;max-height:none}.game-view>[data-hook=popups]{background-color:#1a212585}.disconnected-view .dialog,.disconnected-view .room-view>.container{width:450px}.create-room-view>.dialog,.room-view.create-room-view>.container{max-width:450px;width:100%}body{background:#1a2125}[data-hook=leave-btn]{background:#c13535!important}.file-btn,[data-hook=rec-btn]{display:none!important}h1{text-align:center}.room-view>.container>.header-btns{bottom:0;right:10px;top:auto}.room-view>.container{max-width:none;max-height:max-content}.room-view{position:absolute;width:100%}.roomlist-view>.dialog{max-width:max-content;max-height:max-content}.game-state-view .bar>.scoreboard{display:flex;align-items:center;margin-right:50px}.chatbox-view{position:absolute;left:15px;margin:0;top:10px;width:30%;pointer-events:none;font-size:1rem;display:contents}.chatbox-view-contents{flex-direction:column-reverse;background:0 0;pointer-events:none}.chatbox-view-contents>.input{margin-bottom:10px;pointer-events:auto}.chatbox-view-contents>.log{flex-direction:column;pointer-events:none;overflow-y:scroll;scrollbar-width:none}.settings-view .section.selected{display:flex;align-items:center}.log-contents{display:flex;flex-direction:column-reverse}.log-contents > *{display:inline-block;max-width:fit-content;text-shadow:1px 1px 5px #000000cc}.fade-out{opacity:0;transition:opacity 10s ease-out}thead tr{display:table-row!important}svg{width: 1em}.input-options{position: absolute;width: 100%;height: 100%;z-index: 20;background-color: #1a2125;}" }));
 
 if(!localStorage.getItem('low_latency_canvas') || localStorage.getItem('low_latency_canvas') == 1){
     localStorage.setItem('low_latency_canvas',0)
@@ -71,6 +71,7 @@ let lastMessage;
 let joystick;
 let kickButton;
 let isTouching = false;
+let chatHistory = [];
 
 ///////////////////////////////////////// SETTINGS /////////////////////////////////////////
 
@@ -119,7 +120,7 @@ function applySettings() {
         .game-view>[data-hook=popups] { background-color: ${theme.bg}85 !important; }
         [data-hook=leave-btn] { background: ${theme.accent} !important; }
         .chatbox-view { font-size: ${chatSize}rem !important; }
-        .log-contents > * { ${chatBg ? 'background: #00000066; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px;' : ''} }
+        .log-contents > * { ${chatBg ? 'background: #00000066; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; display: inline-block; max-width: fit-content;' : 'display: inline-block; max-width: fit-content;'} }
         h1 { color: ${theme.text} !important; }
     `;
 
@@ -555,6 +556,15 @@ function setupGameUI() {
         body.querySelector('.sound-button-container').parentNode.prepend(button);
     }
 
+    if (!getByDataHook('chat-history-btn')) {
+        const histBtn = document.createElement("button");
+        histBtn.setAttribute("data-hook", "chat-history-btn");
+        histBtn.setAttribute("style", "display: flex; justify-content: center; align-items: center;");
+        histBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="white" d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 1 1 2.05 4.95L6.64 18.36A9 9 0 1 0 13 3zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>';
+        histBtn.addEventListener("click", openChatHistory);
+        body.querySelector('.sound-button-container').parentNode.prepend(histBtn);
+    }
+
     if (firstTime) {
         body.querySelector('.drag').remove();
         const statsViewContainer = body.querySelector('.stats-view-container');
@@ -566,6 +576,37 @@ function setupGameUI() {
         chat.querySelector('input').addEventListener('blur', function() { inputStyle.display = 'none'; });
         firstTime = false;
     }
+}
+
+const chatHistoryPanel = document.createElement("div");
+chatHistoryPanel.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#1a2125ee; z-index:9999; flex-direction:column;';
+chatHistoryPanel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#111;flex-shrink:0">
+        <span style="color:#ecf0f3;font-weight:bold;font-size:1rem">💬 Histórico do Chat</span>
+        <button id="close-chat-history" style="background:#c13535;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:0.9rem">✕ Fechar</button>
+    </div>
+    <div id="chat-history-list" style="flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:4px;"></div>
+`;
+document.body.appendChild(chatHistoryPanel);
+chatHistoryPanel.querySelector('#close-chat-history').addEventListener('click', () => {
+    chatHistoryPanel.style.display = 'none';
+});
+
+function openChatHistory() {
+    const list = chatHistoryPanel.querySelector('#chat-history-list');
+    list.innerHTML = '';
+    if (chatHistory.length === 0) {
+        list.innerHTML = '<span style="color:#aaa;font-size:0.9rem">Nenhuma mensagem ainda.</span>';
+    } else {
+        chatHistory.forEach(msg => {
+            const el = document.createElement('div');
+            el.style.cssText = `color:${msg.color || '#ecf0f3'};font-size:0.95rem;padding:3px 0;border-bottom:1px solid #ffffff11;word-break:break-word;`;
+            el.innerHTML = msg.html;
+            list.appendChild(el);
+        });
+        list.scrollTop = list.scrollHeight;
+    }
+    chatHistoryPanel.style.display = 'flex';
 }
 
 ///////////////////////////////////////// CHAT /////////////////////////////////////////
@@ -599,6 +640,14 @@ function updatedChat() {
         }
 
         const lastChild = log.firstChild.lastChild;
+
+        // Salvar no histórico
+        chatHistory.push({
+            html: lastChild.innerHTML,
+            color: lastChild.style.color || ''
+        });
+        if (chatHistory.length > 200) chatHistory.shift();
+
         const savedColor = lastChild.style.color;
         lastChild.style.opacity = 1;
         setTimeout(() => {
