@@ -1116,51 +1116,102 @@ function enterHudEditMode() {
 
 
 
-let previousDigitalStickState = "";
-let previousAnalogStickState = "";
-let isXButtonPressed = false;
+///////////////////////////////////////// GAMEPAD /////////////////////////////////////////
 
-window.addEventListener("gamepadconnected", (event) => {
-  console.log("Gamepad connected:", event.gamepad);
-  checkGamepadState(event.gamepad);
-});
+// Indicador visual de controle conectado
+const gamepadIndicator = document.createElement('div');
+gamepadIndicator.style.cssText = 'display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#2ecc7199;color:#fff;padding:4px 12px;border-radius:20px;font-size:0.8rem;z-index:9999;pointer-events:none';
+gamepadIndicator.textContent = '🎮 Controle conectado';
+document.body.appendChild(gamepadIndicator);
 
-window.addEventListener("gamepaddisconnected", (event) => {
-  console.log("Gamepad disconnected:", event.gamepad);
-});
+let gamepadLoopRunning = false;
 
-function checkGamepadState(gamepad) {
-  requestAnimationFrame(() => {
-    const axes = gamepad.axes;
-    const buttons = gamepad.buttons;
+function startGamepadLoop(index) {
+    if (gamepadLoopRunning) return;
+    gamepadLoopRunning = true;
 
-    // Check the digital stick (assuming 8 positions)
-    const digitalStickState = getDigitalStickState(axes[0], axes[1]);
-    if (digitalStickState.changed) {
-      emulateKeys(digitalStickState.direction);
-      previousDigitalStickState = digitalStickState.direction;
+    function loop() {
+        // Busca o gamepad atualizado a cada frame
+        const gp = navigator.getGamepads ? navigator.getGamepads()[index] : null;
+        if (!gp) {
+            gamepadLoopRunning = false;
+            return;
+        }
+
+        const axes = gp.axes;
+        const buttons = gp.buttons;
+
+        // Analógico esquerdo (movimento)
+        const digitalState = getDigitalStickState(axes[0], axes[1]);
+        if (digitalState.changed) {
+            emulateKeys(digitalState.direction === 'Center' ? '' : digitalState.direction);
+            previousDigitalStickState = digitalState.direction;
+        }
+
+        // Analógico direito (alternativo)
+        if (axes.length >= 4) {
+            const analogState = getAnalogStickState(axes[2], axes[3]);
+            if (analogState.changed) {
+                emulateKeys(analogState.direction === 'Center' ? '' : analogState.direction);
+                previousAnalogStickState = analogState.direction;
+            }
+        }
+
+        // Botões de chute: X (0), Quadrado (2), R2 (7), L2 (6) no PS4
+        const kickPressed = buttons[0]?.pressed || buttons[2]?.pressed || buttons[7]?.pressed;
+        if (kickPressed && !isXButtonPressed) {
+            kick("keydown");
+            isXButtonPressed = true;
+        } else if (!kickPressed && isXButtonPressed) {
+            kick("keyup");
+            isXButtonPressed = false;
+        }
+
+        // Botão Options/Start (9) abre o chat
+        if (buttons[9]?.pressed) {
+            chatToggle();
+        }
+
+        requestAnimationFrame(loop);
     }
 
-    // Check the analog stick (assuming 2 positions)
-    const analogStickState = getAnalogStickState(axes[2], axes[3]);
-    if (analogStickState.changed) {
-      emulateKeys(analogStickState.direction);
-      previousAnalogStickState = analogStickState.direction;
-    }
-
-    // Check if the X button is pressed
-    if ((buttons[0].pressed || buttons[2].pressed) && !isXButtonPressed) {
-      kick("keydown");
-      isXButtonPressed = true;
-    } else if (!buttons[0].pressed && !buttons[2].pressed) {
-      kick("keyup");
-      isXButtonPressed = false;
-    }
-
-    // Recursively check for changes
-    checkGamepadState(navigator.getGamepads()[gamepad.index]);
-  });
+    requestAnimationFrame(loop);
 }
+
+// Registrar nos dois contextos — window principal e gameframe
+function registerGamepadListeners(ctx) {
+    ctx.addEventListener("gamepadconnected", (event) => {
+        gamepadIndicator.style.display = 'block';
+        setTimeout(() => { gamepadIndicator.style.display = 'none'; }, 3000);
+        startGamepadLoop(event.gamepad.index);
+    });
+
+    ctx.addEventListener("gamepaddisconnected", () => {
+        gamepadLoopRunning = false;
+        gamepadIndicator.textContent = '🎮 Controle desconectado';
+        gamepadIndicator.style.background = '#c1353599';
+        gamepadIndicator.style.display = 'block';
+        setTimeout(() => { gamepadIndicator.style.display = 'none'; }, 2000);
+    });
+}
+
+registerGamepadListeners(window);
+try { registerGamepadListeners(gameFrame); } catch {}
+
+// Checar se já tem gamepad conectado antes do evento (ex: conectado antes da página carregar)
+setTimeout(() => {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let i = 0; i < pads.length; i++) {
+        if (pads[i]) {
+            gamepadIndicator.style.display = 'block';
+            gamepadIndicator.textContent = '🎮 Controle detectado';
+            setTimeout(() => { gamepadIndicator.style.display = 'none'; }, 2000);
+            startGamepadLoop(i);
+            break;
+        }
+    }
+}, 1500);
+
 
 function getDigitalStickState(x, y) {
   const threshold = 0.3;
