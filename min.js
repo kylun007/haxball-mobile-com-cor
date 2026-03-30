@@ -1131,33 +1131,31 @@ function startGamepadLoop(index) {
     gamepadLoopRunning = true;
 
     function loop() {
-        // Busca o gamepad atualizado a cada frame
         const gp = navigator.getGamepads ? navigator.getGamepads()[index] : null;
         if (!gp) {
             gamepadLoopRunning = false;
+            emulateKeys('');
             return;
         }
 
         const axes = gp.axes;
         const buttons = gp.buttons;
 
-        // Analógico esquerdo (movimento)
-        const digitalState = getDigitalStickState(axes[0], axes[1]);
-        if (digitalState.changed) {
-            emulateKeys(digitalState.direction === 'Center' ? '' : digitalState.direction);
-            previousDigitalStickState = digitalState.direction;
-        }
+        // Analógico esquerdo — envia todo frame pra não travar
+        const x = axes[0] || 0;
+        const y = axes[1] || 0;
+        const deadZone = 0.2;
+        const threshold = 0.3;
 
-        // Analógico direito (alternativo)
-        if (axes.length >= 4) {
-            const analogState = getAnalogStickState(axes[2], axes[3]);
-            if (analogState.changed) {
-                emulateKeys(analogState.direction === 'Center' ? '' : analogState.direction);
-                previousAnalogStickState = analogState.direction;
+        let keys = '';
+        if (Math.abs(x) > deadZone || Math.abs(y) > deadZone) {
+            if (Math.abs(x) > threshold || Math.abs(y) > threshold) {
+                keys = getDirection(x, y);
             }
         }
+        emulateKeys(keys);
 
-        // Botões de chute: X (0), Quadrado (2), R2 (7), L2 (6) no PS4
+        // Botões de chute: X(0), Quadrado(2), R2(7)
         const kickPressed = buttons[0]?.pressed || buttons[2]?.pressed || buttons[7]?.pressed;
         if (kickPressed && !isXButtonPressed) {
             kick("keydown");
@@ -1167,10 +1165,11 @@ function startGamepadLoop(index) {
             isXButtonPressed = false;
         }
 
-        // Botão Options/Start (9) abre o chat
-        if (buttons[9]?.pressed) {
+        // Options(9) abre chat — só dispara uma vez por press
+        if (buttons[9]?.pressed && !buttons[9]._wasPressed) {
             chatToggle();
         }
+        if (buttons[9]) buttons[9]._wasPressed = buttons[9].pressed;
 
         requestAnimationFrame(loop);
     }
