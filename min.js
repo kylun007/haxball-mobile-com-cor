@@ -890,19 +890,28 @@ function enterHudEditMode() {
     const ids = ['joystick', 'kick', 'dblkick', 'fakekick'];
     const labels = { joystick: '🕹️', kick: '⚽', dblkick: '2x', fakekick: 'FK' };
 
-    // Show all buttons during edit
+    // Apply current saved positions first so buttons render in the right place
+    applyHudPositions();
+
+    // Force all buttons visible: remove 'view' attribute (CSS [view|=hidden] would hide them)
+    // and set display + z-index directly so they float above the overlay
     ids.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.setAttribute('view', 'visible');
+        if (!el) return;
+        el.removeAttribute('view');
+        el.style.display = 'flex';
+        el.style.justifyContent = 'center';
+        el.style.alignItems = 'center';
+        el.style.zIndex = '10001'; // above overlay (9999) and bottom panel (10000)
     });
 
-    // Overlay
+    // Dim overlay — pointer-events:none so touches go through to the buttons
     const overlay = document.createElement('div');
     overlay.id = 'hud-edit-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0008;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0006;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;pointer-events:none;';
 
     const bar = document.createElement('div');
-    bar.style.cssText = 'width:100%;background:#1a2125ee;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;flex-wrap:wrap;gap:8px;';
+    bar.style.cssText = 'width:100%;background:#1a2125ee;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;flex-wrap:wrap;gap:8px;pointer-events:auto;';
     bar.innerHTML = `
         <span style="color:#ecf0f3;font-size:0.9rem;font-weight:bold">✏️ Editar HUD — arraste os botões</span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -915,7 +924,7 @@ function enterHudEditMode() {
 
     // Size sliders panel
     const panel = document.createElement('div');
-    panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:10000;background:#1a2125ee;padding:10px 14px;box-sizing:border-box;';
+    panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:10000;background:#1a2125ee;padding:10px 14px;box-sizing:border-box;pointer-events:auto;';
     panel.innerHTML = `
         <div style="color:#ecf0f3;font-size:0.8rem;margin-bottom:6px;font-weight:bold">📐 Tamanho dos botões:</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -934,10 +943,13 @@ function enterHudEditMode() {
         document.getElementById('size-' + id).addEventListener('input', function() {
             layout[id].size = parseFloat(this.value);
             document.getElementById('size-lbl-' + id).textContent = this.value + 'vw';
-            applyHudPositions();
-            // re-apply from layout directly since applyHudPositions reads from storage
             const el = document.getElementById(id);
-            if (el) { el.style.width = this.value + 'vw'; el.style.fontSize = (parseFloat(this.value) * 0.045) + 'rem'; }
+            if (el) {
+                el.style.width = this.value + 'vw';
+                el.style.fontSize = (parseFloat(this.value) * 0.045) + 'rem';
+                el.style.display = 'flex';
+                el.style.zIndex = '10001';
+            }
         });
     });
 
@@ -1009,23 +1021,39 @@ function enterHudEditMode() {
         });
     });
 
+    function exitEditMode() {
+        overlay.remove();
+        panel.remove();
+        // Restore buttons: put view="hidden" back so showControls() manages them normally
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.style.display = '';
+            el.style.zIndex = '';
+            el.setAttribute('view', 'hidden');
+        });
+        showControls(false);
+    }
+
     document.getElementById('hud-save-btn').addEventListener('click', function() {
         saveHudLayout(layout);
         applyHudPositions();
-        overlay.remove(); panel.remove();
-        showControls(false);
+        exitEditMode();
     });
 
     document.getElementById('hud-reset-btn').addEventListener('click', function() {
         const def = JSON.parse(JSON.stringify(defaultHudLayout));
         saveHudLayout(def);
-        applyHudPositions();
+        // Clear inline position styles so applyHudPositions sets them fresh
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el) { el.style.left=''; el.style.right=''; el.style.top=''; el.style.bottom=''; }
         });
         applyHudPositions();
+        // Keep buttons visible after reset
         ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.style.display = 'flex'; el.style.zIndex = '10001'; }
             const s = document.getElementById('size-' + id);
             if (s) { s.value = def[id].size; document.getElementById('size-lbl-' + id).textContent = def[id].size + 'vw'; }
         });
