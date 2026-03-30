@@ -193,6 +193,22 @@ function init() {
         aboutHandler.style.display = 'none';
     });
 
+    // Registrar gamepad após gameFrame estar pronto
+    registerGamepadListeners(window);
+    try { registerGamepadListeners(gameFrame); } catch {}
+    setTimeout(() => {
+        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        for (let i = 0; i < pads.length; i++) {
+            if (pads[i]) {
+                gamepadIndicator.textContent = '🎮 Controle detectado';
+                gamepadIndicator.style.display = 'block';
+                setTimeout(() => { gamepadIndicator.style.display = 'none'; }, 2000);
+                startGamepadLoop(i);
+                break;
+            }
+        }
+    }, 500);
+
     console.log("PAGE_LOADED")
 }
 
@@ -1118,58 +1134,57 @@ function enterHudEditMode() {
 
 ///////////////////////////////////////// GAMEPAD /////////////////////////////////////////
 
-// Indicador visual de controle conectado
 const gamepadIndicator = document.createElement('div');
 gamepadIndicator.style.cssText = 'display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#2ecc7199;color:#fff;padding:4px 12px;border-radius:20px;font-size:0.8rem;z-index:9999;pointer-events:none';
 gamepadIndicator.textContent = '🎮 Controle conectado';
 document.body.appendChild(gamepadIndicator);
 
 let gamepadLoopRunning = false;
+let gpIsXPressed = false;
+let gpOptionsWasPressed = false;
+
+function getGamepadDirection(x, y) {
+    const deadZone = 0.2;
+    if (Math.abs(x) < deadZone && Math.abs(y) < deadZone) return '';
+    let keys = '';
+    if (y < -deadZone) keys += 'w';
+    if (y > deadZone)  keys += 's';
+    if (x < -deadZone) keys += 'a';
+    if (x > deadZone)  keys += 'd';
+    return keys;
+}
 
 function startGamepadLoop(index) {
     if (gamepadLoopRunning) return;
     gamepadLoopRunning = true;
 
     function loop() {
-        const gp = navigator.getGamepads ? navigator.getGamepads()[index] : null;
+        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        const gp = pads[index];
         if (!gp) {
             gamepadLoopRunning = false;
             emulateKeys('');
             return;
         }
 
-        const axes = gp.axes;
-        const buttons = gp.buttons;
+        // Movimento — analógico esquerdo
+        const dir = getGamepadDirection(gp.axes[0] || 0, gp.axes[1] || 0);
+        emulateKeys(dir);
 
-        // Analógico esquerdo — envia todo frame pra não travar
-        const x = axes[0] || 0;
-        const y = axes[1] || 0;
-        const deadZone = 0.2;
-        const threshold = 0.3;
-
-        let keys = '';
-        if (Math.abs(x) > deadZone || Math.abs(y) > deadZone) {
-            if (Math.abs(x) > threshold || Math.abs(y) > threshold) {
-                keys = getDirection(x, y);
-            }
-        }
-        emulateKeys(keys);
-
-        // Botões de chute: X(0), Quadrado(2), R2(7)
-        const kickPressed = buttons[0]?.pressed || buttons[2]?.pressed || buttons[7]?.pressed;
-        if (kickPressed && !isXButtonPressed) {
+        // Chute — X(0), Quadrado(2), R2(7)
+        const kickNow = !!(gp.buttons[0]?.pressed || gp.buttons[2]?.pressed || gp.buttons[7]?.pressed);
+        if (kickNow && !gpIsXPressed) {
             kick("keydown");
-            isXButtonPressed = true;
-        } else if (!kickPressed && isXButtonPressed) {
+            gpIsXPressed = true;
+        } else if (!kickNow && gpIsXPressed) {
             kick("keyup");
-            isXButtonPressed = false;
+            gpIsXPressed = false;
         }
 
-        // Options(9) abre chat — só dispara uma vez por press
-        if (buttons[9]?.pressed && !buttons[9]._wasPressed) {
-            chatToggle();
-        }
-        if (buttons[9]) buttons[9]._wasPressed = buttons[9].pressed;
+        // Options(9) — abre/fecha chat, só uma vez por press
+        const optionsNow = !!(gp.buttons[9]?.pressed);
+        if (optionsNow && !gpOptionsWasPressed) chatToggle();
+        gpOptionsWasPressed = optionsNow;
 
         requestAnimationFrame(loop);
     }
@@ -1177,77 +1192,31 @@ function startGamepadLoop(index) {
     requestAnimationFrame(loop);
 }
 
-// Registrar nos dois contextos — window principal e gameframe
 function registerGamepadListeners(ctx) {
     ctx.addEventListener("gamepadconnected", (event) => {
         gamepadIndicator.style.display = 'block';
         setTimeout(() => { gamepadIndicator.style.display = 'none'; }, 3000);
         startGamepadLoop(event.gamepad.index);
     });
-
     ctx.addEventListener("gamepaddisconnected", () => {
         gamepadLoopRunning = false;
+        emulateKeys('');
+        gpIsXPressed = false;
         gamepadIndicator.textContent = '🎮 Controle desconectado';
         gamepadIndicator.style.background = '#c1353599';
         gamepadIndicator.style.display = 'block';
-        setTimeout(() => { gamepadIndicator.style.display = 'none'; }, 2000);
+        setTimeout(() => {
+            gamepadIndicator.style.display = 'none';
+            gamepadIndicator.textContent = '🎮 Controle conectado';
+            gamepadIndicator.style.background = '#2ecc7199';
+        }, 2000);
     });
 }
 
-registerGamepadListeners(window);
-try { registerGamepadListeners(gameFrame); } catch {}
-
-// Checar se já tem gamepad conectado antes do evento (ex: conectado antes da página carregar)
-setTimeout(() => {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (let i = 0; i < pads.length; i++) {
-        if (pads[i]) {
-            gamepadIndicator.style.display = 'block';
-            gamepadIndicator.textContent = '🎮 Controle detectado';
-            setTimeout(() => { gamepadIndicator.style.display = 'none'; }, 2000);
-            startGamepadLoop(i);
-            break;
-        }
-    }
-}, 1500);
 
 
-function getDigitalStickState(x, y) {
-  const threshold = 0.3;
-  const centerThreshold = 0.08;
 
-  if (Math.abs(x) < centerThreshold && Math.abs(y) < centerThreshold) {
-    return { changed: previousDigitalStickState !== "Center", direction: "Center" };
-  }
 
-  if (Math.abs(x) > threshold || Math.abs(y) > threshold) {
-    const direction = getDirection(x, y);
-    return { changed: direction !== previousDigitalStickState, direction };
-  }
 
-  return { changed: false };
-}
 
-function getAnalogStickState(x, y) {
-  const threshold = 0.3;
-  const centerThreshold = 0.08;
 
-  if (Math.abs(x) < centerThreshold && Math.abs(y) < centerThreshold) {
-    return { changed: previousAnalogStickState !== "Center", direction: "Center" };
-  }
-
-  if (Math.abs(x) > threshold || Math.abs(y) > threshold) {
-    const direction = getDirection(x, y);
-    return { changed: direction !== previousAnalogStickState, direction };
-  }
-
-  return { changed: false };
-}
-
-function getDirection(x, y) {
-  const angle = Math.atan2(y, x);
-  const angleInDegrees = (angle >= 0 ? angle : (2 * Math.PI + angle)) * (180 / Math.PI);
-  const sector = Math.round(angleInDegrees / 45) % 8;
-  const directions = ["d", "sd", "s", "sa", "a", "aw", "w", "wd"];
-  return directions[sector];
-}
