@@ -72,6 +72,69 @@ let joystick;
 let kickButton;
 let isTouching = false;
 
+///////////////////////////////////////// SETTINGS /////////////////////////////////////////
+
+const defaultSettings = {
+    vibration: true,
+    macros: true,
+    theme: 'dark',
+    chatSize: 1,
+    chatBg: true
+};
+
+function getSetting(key) {
+    const saved = localStorage.getItem('hm_settings');
+    const settings = saved ? JSON.parse(saved) : defaultSettings;
+    return settings[key] !== undefined ? settings[key] : defaultSettings[key];
+}
+
+function setSetting(key, value) {
+    const saved = localStorage.getItem('hm_settings');
+    const settings = saved ? JSON.parse(saved) : { ...defaultSettings };
+    settings[key] = value;
+    localStorage.setItem('hm_settings', JSON.stringify(settings));
+    applySettings();
+}
+
+const themes = {
+    dark:   { bg: '#1a2125', accent: '#c13535', text: '#ecf0f3' },
+    blue:   { bg: '#0d1b2a', accent: '#1e90ff', text: '#e0f0ff' },
+    green:  { bg: '#0f1f15', accent: '#2ecc71', text: '#d5f5e3' },
+    purple: { bg: '#1a0f2e', accent: '#9b59b6', text: '#e8d5f5' },
+    black:  { bg: '#0a0a0a', accent: '#ff4444', text: '#ffffff' }
+};
+
+const themeStyleHandler = document.createElement('style');
+document.head.appendChild(themeStyleHandler);
+const themeGameStyleHandler = document.createElement('style');
+
+function applySettings() {
+    const theme = themes[getSetting('theme')] || themes.dark;
+    const chatSize = getSetting('chatSize');
+    const chatBg = getSetting('chatBg');
+
+    themeStyleHandler.innerHTML = `body { background: ${theme.bg} !important; }`;
+    themeGameStyleHandler.innerHTML = `
+        body { background: ${theme.bg} !important; }
+        .game-view>[data-hook=popups] { background-color: ${theme.bg}85 !important; }
+        [data-hook=leave-btn] { background: ${theme.accent} !important; }
+        .chatbox-view { font-size: ${chatSize}rem !important; }
+        .log-contents > * { ${chatBg ? 'background: #00000066; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px;' : ''} }
+        h1 { color: ${theme.text} !important; }
+    `;
+
+    try {
+        gameFrame.document.head.appendChild(themeGameStyleHandler);
+    } catch {}
+
+    // Mostrar/esconder botões de macro
+    const dbBtn = document.getElementById('dblkick');
+    const fkBtn = document.getElementById('fakekick');
+    if (dbBtn) dbBtn.setAttribute('view', getSetting('macros') ? 'visible' : 'hidden');
+    if (fkBtn) fkBtn.setAttribute('view', getSetting('macros') ? 'visible' : 'hidden');
+}
+
+
 ///////////////////////////////////////// MAIN /////////////////////////////////////////
 
 var checkLoaderInterval = setInterval(checkLoader, 1000);
@@ -99,6 +162,8 @@ function init() {
     setupCountryFilter();
     setupControls();
     setupCopyright(true);
+    setupSettingsMenu();
+    applySettings();
     hideButtons.remove();
 
     //Mutation observer
@@ -204,6 +269,7 @@ function updateUI() {
         if (!getByDataHook('url-room')) createURLButton();
         if (!getByDataHook('fil-cou')) createCountryButton();
         if (!getByDataHook('aboutbtn')) createAboutButton();
+        if (!getByDataHook('settingsbtn')) createSettingsButton();
         if (getByDataHook('count')) getByDataHook('count').remove();
         showControls(false);
     } else if (body.querySelector('.create-room-view')) {
@@ -340,6 +406,111 @@ function createAboutButton() {
     insertAfter(body.querySelector(".buttons .spacer"), button)
 }
 
+function createSettingsButton() {
+    let button = document.createElement("button");
+    button.setAttribute("data-hook", "settingsbtn");
+    button.innerHTML = '<i class="icon-cog"></i><div>Mod Settings</div>';
+    button.addEventListener("click", function() {
+        settingsMenuHandler.style.display = 'flex';
+        renderSettingsMenu();
+    });
+    insertAfter(body.querySelector(".buttons .spacer"), button)
+}
+
+const settingsMenuHandler = document.createElement("div");
+
+function setupSettingsMenu() {
+    settingsMenuHandler.style.cssText = 'background: #1a2125; position: absolute; width: 100%; height: 100%; display: none; justify-content: center; flex-direction: column; align-items: center; margin: 0; z-index: 999;';
+    body.parentNode.appendChild(settingsMenuHandler);
+}
+
+function renderSettingsMenu() {
+    const t = getSetting('theme');
+    const vibOn = getSetting('vibration');
+    const macOn = getSetting('macros');
+    const chatBgOn = getSetting('chatBg');
+    const chatSize = getSetting('chatSize');
+
+    settingsMenuHandler.innerHTML = `
+    <div class="dialog settings-view" style="max-width:95%;max-height:90vh;overflow-y:auto;position:relative">
+        <h1>⚙️ Mod Settings</h1>
+        <button data-hook="closesettings" style="position:absolute;top:12px;right:10px">✕ Fechar</button>
+        <div class="tabcontents">
+          <div class="section selected" style="flex-direction:column;gap:14px;padding:10px 0">
+
+            <div class="option-row" style="justify-content:space-between;align-items:center">
+              <div>📳 Vibração no chute</div>
+              <button data-hook="tog-vib" style="min-width:70px;background:${vibOn ? '#2ecc71' : '#c13535'}">${vibOn ? 'ON' : 'OFF'}</button>
+            </div>
+
+            <div class="option-row" style="justify-content:space-between;align-items:center">
+              <div>🎯 Macros (Double Kick / Fake Shot)</div>
+              <button data-hook="tog-mac" style="min-width:70px;background:${macOn ? '#2ecc71' : '#c13535'}">${macOn ? 'ON' : 'OFF'}</button>
+            </div>
+
+            <div class="option-row" style="justify-content:space-between;align-items:center">
+              <div>💬 Fundo nas mensagens do chat</div>
+              <button data-hook="tog-chatbg" style="min-width:70px;background:${chatBgOn ? '#2ecc71' : '#c13535'}">${chatBgOn ? 'ON' : 'OFF'}</button>
+            </div>
+
+            <div class="option-row" style="flex-direction:column;gap:6px">
+              <div>🔤 Tamanho do chat: <b>${chatSize}x</b></div>
+              <input data-hook="chat-size" class="slider" type="range" min="0.7" max="1.8" step="0.1" value="${chatSize}" style="width:100%">
+            </div>
+
+            <div class="option-row" style="flex-direction:column;gap:8px">
+              <div>🎨 Tema de cores</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                ${Object.keys(themes).map(k => `
+                  <button data-hook="theme-${k}" style="background:${themes[k].bg};border:3px solid ${t===k ? themes[k].accent : 'transparent'};color:${themes[k].text};min-width:60px;font-size:0.8rem">
+                    ${k.charAt(0).toUpperCase()+k.slice(1)}
+                  </button>`).join('')}
+              </div>
+            </div>
+
+          </div>
+        </div>
+    </div>`;
+
+    settingsMenuHandler.querySelector('[data-hook="closesettings"]').addEventListener("click", () => {
+        settingsMenuHandler.style.display = 'none';
+    });
+
+    settingsMenuHandler.querySelector('[data-hook="tog-vib"]').addEventListener("click", function() {
+        const v = !getSetting('vibration');
+        setSetting('vibration', v);
+        this.textContent = v ? 'ON' : 'OFF';
+        this.style.background = v ? '#2ecc71' : '#c13535';
+        if (v && navigator.vibrate) navigator.vibrate(50);
+    });
+
+    settingsMenuHandler.querySelector('[data-hook="tog-mac"]').addEventListener("click", function() {
+        const v = !getSetting('macros');
+        setSetting('macros', v);
+        this.textContent = v ? 'ON' : 'OFF';
+        this.style.background = v ? '#2ecc71' : '#c13535';
+    });
+
+    settingsMenuHandler.querySelector('[data-hook="tog-chatbg"]').addEventListener("click", function() {
+        const v = !getSetting('chatBg');
+        setSetting('chatBg', v);
+        this.textContent = v ? 'ON' : 'OFF';
+        this.style.background = v ? '#2ecc71' : '#c13535';
+    });
+
+    settingsMenuHandler.querySelector('[data-hook="chat-size"]').addEventListener("input", function() {
+        setSetting('chatSize', parseFloat(this.value));
+        this.previousElementSibling.innerHTML = `🔤 Tamanho do chat: <b>${this.value}x</b>`;
+    });
+
+    Object.keys(themes).forEach(k => {
+        settingsMenuHandler.querySelector(`[data-hook="theme-${k}"]`).addEventListener("click", function() {
+            setSetting('theme', k);
+            renderSettingsMenu();
+        });
+    });
+}
+
 function filterCountries(button) {
     const geoData = localStorage.getItem('geo_override') || localStorage.getItem('geo');
 
@@ -456,9 +627,18 @@ function showControls(v) {
     if (v) {
         joystick.setAttribute("view", "visible");
         kickButton.setAttribute("view", "visible");
+        const macrosOn = getSetting('macros');
+        const dbBtn = document.getElementById('dblkick');
+        const fkBtn = document.getElementById('fakekick');
+        if (dbBtn) dbBtn.setAttribute('view', macrosOn ? 'visible' : 'hidden');
+        if (fkBtn) fkBtn.setAttribute('view', macrosOn ? 'visible' : 'hidden');
     } else {
         joystick.setAttribute("view", "hidden");
         kickButton.setAttribute("view", "hidden");
+        const dbBtn = document.getElementById('dblkick');
+        const fkBtn = document.getElementById('fakekick');
+        if (dbBtn) dbBtn.setAttribute('view', 'hidden');
+        if (fkBtn) fkBtn.setAttribute('view', 'hidden');
     }
 }
 
@@ -506,7 +686,7 @@ function handleTouchEnd() {
 function kick(str) {
     try {
         gameFrame.document.dispatchEvent(new KeyboardEvent(str, { code: "KeyX" }));
-        if (str === "keydown" && navigator.vibrate) navigator.vibrate(30);
+        if (str === "keydown" && navigator.vibrate && getSetting('vibration')) navigator.vibrate(30);
     } catch {}
 }
 
@@ -613,8 +793,44 @@ function setupControls() {
     kickButton.addEventListener('touchstart', function() { kick('keydown') });
     kickButton.addEventListener('touchend', function() { kick('keyup') });
 
+    // Double Kick
+    const dblKickBtn = document.createElement("button");
+    dblKickBtn.setAttribute("class", "neo rounded sizer");
+    dblKickBtn.setAttribute("view", "hidden");
+    dblKickBtn.setAttribute("float", "");
+    dblKickBtn.setAttribute("id", "dblkick");
+    dblKickBtn.innerHTML = '2x';
+    dblKickBtn.style.cssText = 'z-index:100; bottom:22vw; right:22%; font-size:1rem; font-weight:bold;';
+    dblKickBtn.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        if (!getSetting('macros')) return;
+        kick('keydown');
+        if (navigator.vibrate && getSetting('vibration')) navigator.vibrate([30, 40, 30]);
+        setTimeout(() => { kick('keyup'); }, 50);
+        setTimeout(() => { kick('keydown'); }, 100);
+        setTimeout(() => { kick('keyup'); }, 150);
+    });
+
+    // Fake Shot
+    const fakeKickBtn = document.createElement("button");
+    fakeKickBtn.setAttribute("class", "neo rounded sizer");
+    fakeKickBtn.setAttribute("view", "hidden");
+    fakeKickBtn.setAttribute("float", "");
+    fakeKickBtn.setAttribute("id", "fakekick");
+    fakeKickBtn.innerHTML = 'FK';
+    fakeKickBtn.style.cssText = 'z-index:100; bottom:22vw; right:38%; font-size:1rem; font-weight:bold;';
+    fakeKickBtn.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        if (!getSetting('macros')) return;
+        kick('keydown');
+        if (navigator.vibrate && getSetting('vibration')) navigator.vibrate(15);
+        setTimeout(() => { kick('keyup'); }, 30);
+    });
+
     document.body.appendChild(joystick);
     document.body.appendChild(kickButton);
+    document.body.appendChild(dblKickBtn);
+    document.body.appendChild(fakeKickBtn);
 
     const controlOptions = JSON.parse(localStorage.getItem("controls"));
     if (controlOptions === null) {
