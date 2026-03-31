@@ -45,7 +45,7 @@ const tips = [
     "Tip: have fun and enjoy the game; a positive attitude enhances performance."
 ];
 
-const constrolsStyleBase = "#joystick,#kick{z-index:100;bottom:CONTROLS_MARGINvw}.neo{opacity:CONTROLS_OPACITY;background-color:#c2c2c255;box-shadow:6px 6px 10px 0 #a5abb133,-5px -5px 9px 0 #a5abb133;color:#dedede55;font-weight:bolder;font-size:1.5rem}.sizer{width:CONTROLS_WIDTH%;aspect-ratio: 1 / 1;}#joystick{left:CONTROLS_MARGIN%;overflow:hidden;position:absolute}#thumb{width:40%;height:40%;background-color:#ecf0f3cc;position:absolute}#kick{right:CONTROLS_MARGIN%}button.neo:active{opacity:KICK_OPACITY}";
+const constrolsStyleBase = "#joystick,#kick{z-index:100;bottom:CONTROLS_MARGINvw}.neo{opacity:CONTROLS_OPACITY;background-color:#c2c2c255;box-shadow:6px 6px 10px 0 #a5abb133,-5px -5px 9px 0 #a5abb133;color:#dedede55;font-weight:bolder;font-size:1.5rem}.sizer{width:CONTROLS_WIDTH%;aspect-ratio: 1 / 1;}#joystick{left:CONTROLS_MARGIN%;overflow:visible}#thumb{width:40%;height:40%;background-color:#ecf0f3cc}#kick{right:CONTROLS_MARGIN%}button.neo:active{opacity:KICK_OPACITY}";
 
 const countryFilterHandler = document.createElement('style');
 const hideButtons = document.createElement('style');
@@ -330,6 +330,7 @@ function updateUI() {
         showControls(false);
         if (!getByDataHook('store')) createStoreButton();
         setupGameUI();
+        setupAdminPlayerButtons();
         resetJoystick();
         canResetJoystick = true;
     } else if (body.querySelector('.room-link-view')) {
@@ -368,6 +369,59 @@ function createStoreButton() {
     insertAfter(getByDataHook('rec-btn'), store);
     store.addEventListener("click", function() {
         prefabMessage("/store")
+    });
+}
+
+function setupAdminPlayerButtons() {
+    const rows = body.querySelectorAll('tr');
+    rows.forEach(row => {
+        if (row.querySelector('[data-hook="mod-btns"]')) return; // já tem botões
+
+        const nameSpan = row.querySelector('span[data-hook="name"]');
+        if (!nameSpan) return;
+
+        // Pegar o nome do jogador pelo span
+        const playerName = nameSpan.textContent.trim();
+        if (!playerName) return;
+
+        const btnContainer = document.createElement('span');
+        btnContainer.setAttribute('data-hook', 'mod-btns');
+        btnContainer.style.cssText = 'display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle';
+
+        // Botão → Time Vermelho
+        const redBtn = document.createElement('button');
+        redBtn.textContent = '🔴';
+        redBtn.title = 'Mover pro vermelho';
+        redBtn.style.cssText = 'background:#c1353588;border:none;border-radius:4px;padding:2px 5px;font-size:0.75rem;cursor:pointer;color:#fff;min-width:0';
+        redBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            prefabMessage(`!setteam ${playerName} red`);
+        });
+
+        // Botão → Time Azul
+        const blueBtn = document.createElement('button');
+        blueBtn.textContent = '🔵';
+        blueBtn.title = 'Mover pro azul';
+        blueBtn.style.cssText = 'background:#1e90ff88;border:none;border-radius:4px;padding:2px 5px;font-size:0.75rem;cursor:pointer;color:#fff;min-width:0';
+        blueBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            prefabMessage(`!setteam ${playerName} blue`);
+        });
+
+        // Botão → Spec
+        const specBtn = document.createElement('button');
+        specBtn.textContent = '👁';
+        specBtn.title = 'Mover pro spec';
+        specBtn.style.cssText = 'background:#55555588;border:none;border-radius:4px;padding:2px 5px;font-size:0.75rem;cursor:pointer;color:#fff;min-width:0';
+        specBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            prefabMessage(`!setteam ${playerName} spec`);
+        });
+
+        btnContainer.appendChild(redBtn);
+        btnContainer.appendChild(blueBtn);
+        btnContainer.appendChild(specBtn);
+        nameSpan.appendChild(btnContainer);
     });
 }
 
@@ -591,7 +645,64 @@ function setupGameUI() {
         inputStyle.display = 'none';
         chat.querySelector('input').addEventListener('blur', function() { inputStyle.display = 'none'; });
         firstTime = false;
+        setupPingHUD();
     }
+}
+
+let pingHudInterval = null;
+
+function setupPingHUD() {
+    if (document.getElementById('ping-hud')) return;
+
+    const hud = document.createElement('div');
+    hud.id = 'ping-hud';
+    hud.style.cssText = 'position:fixed;bottom:22vw;left:50%;transform:translateX(-50%);background:#00000077;color:#ecf0f3;font-size:0.75rem;font-family:monospace;padding:3px 8px;border-radius:8px;z-index:200;pointer-events:none;text-align:center;line-height:1.4;';
+    hud.innerHTML = 'PING: --ms<br>RB: --%';
+    document.body.appendChild(hud);
+
+    clearInterval(pingHudInterval);
+    pingHudInterval = setInterval(() => {
+        try {
+            // Pegar o canvas de network do HaxBall
+            const networkCanvas = body.querySelector('canvas.graph') || body.querySelector('[data-hook="network"] canvas') || body.querySelector('.network-view canvas');
+
+            // Tentar ler ping direto do DOM — HaxBall expõe em elementos de texto
+            const pingEl = body.querySelector('[data-hook="ping"]') || body.querySelector('.ping');
+            const redBarEl = body.querySelector('[data-hook="red-bar"]') || body.querySelector('.red-bar') || body.querySelector('[data-hook="packet-loss"]');
+
+            let pingVal = '--';
+            let rbVal = '--';
+
+            if (pingEl) {
+                pingVal = pingEl.textContent.replace(/[^0-9]/g, '');
+            }
+            if (redBarEl) {
+                rbVal = redBarEl.textContent.replace(/[^0-9.]/g, '');
+            }
+
+            // Fallback: tentar via RTCPeerConnection se disponível
+            if (pingVal === '--') {
+                const statsEl = body.querySelector('.game-state-view .ping') ||
+                                body.querySelector('.network') ||
+                                body.querySelector('[class*="ping"]') ||
+                                body.querySelector('[class*="latency"]');
+                if (statsEl) pingVal = statsEl.textContent.replace(/[^0-9]/g, '');
+            }
+
+            // Colorir ping
+            const ping = parseInt(pingVal);
+            let pingColor = '#2ecc71';
+            if (ping > 100) pingColor = '#f39c12';
+            if (ping > 200) pingColor = '#c13535';
+
+            const rb = parseFloat(rbVal);
+            let rbColor = '#2ecc71';
+            if (rb > 1) rbColor = '#f39c12';
+            if (rb > 5) rbColor = '#c13535';
+
+            hud.innerHTML = `<span style="color:${pingColor}">PING: ${pingVal === '--' ? '--' : pingVal + 'ms'}</span><br><span style="color:${rbColor}">RB: ${rbVal === '--' ? '--' : rbVal + '%'}</span>`;
+        } catch {}
+    }, 1000);
 }
 
 const chatHistoryPanel = document.createElement("div");
@@ -765,15 +876,14 @@ function updateJoystick(touch) {
 
     const angle = Math.atan2(deltaY, deltaX);
     const distance = Math.hypot(deltaX, deltaY);
-    const maxRadius = (joystick.clientWidth / 2) - (thumb.clientWidth / 2);
+    const maxRadius = joystick.clientWidth / 2;
     const clampedDistance = Math.min(maxRadius, distance);
 
-    // Posição relativa ao centro do joystick
-    const thumbOffsetX = clampedDistance * Math.cos(angle);
-    const thumbOffsetY = clampedDistance * Math.sin(angle);
+    const thumbX = centerX + clampedDistance * Math.cos(angle);
+    const thumbY = centerY + clampedDistance * Math.sin(angle);
 
-    thumb.style.left = (joystick.clientWidth / 2 + thumbOffsetX - thumb.clientWidth / 2) + 'px';
-    thumb.style.top  = (joystick.clientHeight / 2 + thumbOffsetY - thumb.clientHeight / 2) + 'px';
+    thumb.style.left = thumbX - rect.left - thumb.clientWidth / 2 + 'px';
+    thumb.style.top = thumbY - rect.top - thumb.clientHeight / 2 + 'px';
 
     const deadZone = 0.15;
     const normalized = Math.min(clampedDistance / maxRadius, 1);
@@ -787,8 +897,11 @@ function updateJoystick(touch) {
     const diagonalThreshold = 30;
 
     let keys = "";
+    // Horizontal
     if (angleInDegrees < 90 - diagonalThreshold || angleInDegrees > 270 + diagonalThreshold) keys += "d";
     else if (angleInDegrees > 90 + diagonalThreshold && angleInDegrees < 270 - diagonalThreshold) keys += "a";
+    // Vertical
+    if (angleInDegrees > 360 - (90 - diagonalThreshold) || angleInDegrees < 90 - diagonalThreshold) {} // só horizontal
     if (angleInDegrees > diagonalThreshold && angleInDegrees < 180 - diagonalThreshold) keys += "s";
     else if (angleInDegrees > 180 + diagonalThreshold && angleInDegrees < 360 - diagonalThreshold) keys += "w";
 
