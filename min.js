@@ -169,24 +169,15 @@ function init() {
 
     //Mutation observer
     let uiDebounce = null;
-    const observer = new MutationObserver(function(mutationsList) {
-        // Só roda updateUI se mudou a estrutura principal (view trocou)
+    const observer = new MutationObserver(function() {
         clearTimeout(uiDebounce);
         uiDebounce = setTimeout(() => {
             try { updateUI(); } catch {}
         }, 100);
-    });
-    try { updateUI() } catch {}
-    observer.observe(body, config);
-
-    // Observer separado só pro chat, mais leve
-    const chatObserver = new MutationObserver(function() {
         try { updatedChat(); } catch {}
     });
-    try {
-        const logEl = body.querySelector('[data-hook="log-contents"]') || body.querySelector('.log-contents');
-        if (logEl) chatObserver.observe(logEl, { childList: true, subtree: false });
-    } catch {}
+    try { updateUI() } catch {}
+    observer.observe(body, { childList: true, subtree: true });
 
     gameFrame.head.innerHTML += "<style>button{display: }</style>";
     aboutHandler.setAttribute('data-hook', 'about');
