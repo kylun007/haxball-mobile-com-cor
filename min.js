@@ -1,5 +1,5 @@
 document.head.appendChild(Object.assign(document.createElement("style"), { innerHTML: "#thumb,body{touch-action:none}body{user-select:none;height:100%}@media only screen and (max-device-width:480px){body{touch-action:manipulation}}.header,.rightbar{display:none!important}.rounded{border:none;border-radius:50%}[view|=hidden]{display:none}[view|=visible]{display:flex;justify-content:center;align-items:center}[float]{position:absolute}svg{fill:#ecf0f3cc;width:30px;height:auto}#kick svg{width:50%}" }));
-document.querySelector('.gameframe').contentWindow.document.head.appendChild(Object.assign(document.createElement("style"), { innerHTML: ".room-view,.roomlist-view{height:100%;margin-top:0}.game-view>.top-section,.room-view{margin-top:0}.settings-view{width:100%;max-height:none}.game-view>[data-hook=popups]{background-color:#1a212585}.disconnected-view .dialog,.disconnected-view .room-view>.container{width:450px}.create-room-view>.dialog,.room-view.create-room-view>.container{max-width:450px;width:100%}body{background:#1a2125}[data-hook=leave-btn]{background:#c13535!important}.file-btn,[data-hook=rec-btn]{display:none!important}h1{text-align:center}.room-view>.container>.header-btns{bottom:0;right:10px;top:auto}.room-view>.container{max-width:none;max-height:max-content}.room-view{position:absolute;width:100%}.roomlist-view>.dialog{max-width:max-content;max-height:max-content}.game-state-view .bar>.scoreboard{display:flex;align-items:center;margin-right:50px}.chatbox-view{position:absolute;left:15px;margin:0;top:10px;width:30%;pointer-events:none;font-size:1rem;display:contents}.chatbox-view-contents{flex-direction:column-reverse;background:0 0;pointer-events:none}.chatbox-view-contents>.input{margin-bottom:10px;pointer-events:auto}.chatbox-view-contents>.log{flex-direction:column;pointer-events:none;overflow-y:scroll;scrollbar-width:none}.settings-view .section.selected{display:flex;align-items:center}.log-contents{display:flex;flex-direction:column-reverse}.log-contents > *{display:inline-block;max-width:fit-content;text-shadow:1px 1px 5px #000000cc}.fade-out{opacity:0;transition:opacity 10s ease-out}thead tr{display:table-row!important}svg{width: 1em}.input-options{position: absolute;width: 100%;height: 100%;z-index: 20;background-color: #1a2125;}" }));
+document.querySelector('.gameframe').contentWindow.document.head.appendChild(Object.assign(document.createElement("style"), { innerHTML: ".room-view,.roomlist-view{height:100%;margin-top:0}.game-view>.top-section,.room-view{margin-top:0}.settings-view{width:100%;max-height:none}.game-view>[data-hook=popups]{background-color:#1a212585}.disconnected-view .dialog,.disconnected-view .room-view>.container{width:450px}.create-room-view>.dialog,.room-view.create-room-view>.container{max-width:450px;width:100%}body{background:#1a2125}[data-hook=leave-btn]{background:#c13535!important}.file-btn,[data-hook=rec-btn]{display:none!important}.network-view,.graph-view,[data-hook=network]{display:block!important}h1{text-align:center}.room-view>.container>.header-btns{bottom:0;right:10px;top:auto}.room-view>.container{max-width:none;max-height:max-content}.room-view{position:absolute;width:100%}.roomlist-view>.dialog{max-width:max-content;max-height:max-content}.game-state-view .bar>.scoreboard{display:flex;align-items:center;margin-right:50px}.chatbox-view{position:absolute;left:15px;margin:0;top:10px;width:30%;pointer-events:none;font-size:1rem;display:contents}.chatbox-view-contents{flex-direction:column-reverse;background:0 0;pointer-events:none}.chatbox-view-contents>.input{margin-bottom:10px;pointer-events:auto}.chatbox-view-contents>.log{flex-direction:column;pointer-events:none;overflow-y:scroll;scrollbar-width:none}.settings-view .section.selected{display:flex;align-items:center}.log-contents{display:flex;flex-direction:column-reverse}.log-contents > *{display:inline-block;max-width:fit-content;text-shadow:1px 1px 5px #000000cc}.fade-out{opacity:0;transition:opacity 10s ease-out}thead tr{display:table-row!important}svg{width: 1em}.input-options{position: absolute;width: 100%;height: 100%;z-index: 20;background-color: #1a2125;}" }));
 
 if(!localStorage.getItem('low_latency_canvas') || localStorage.getItem('low_latency_canvas') == 1){
     localStorage.setItem('low_latency_canvas',0)
@@ -654,55 +654,31 @@ let pingHudInterval = null;
 function setupPingHUD() {
     if (document.getElementById('ping-hud')) return;
 
-    const hud = document.createElement('div');
-    hud.id = 'ping-hud';
-    hud.style.cssText = 'position:fixed;bottom:22vw;left:50%;transform:translateX(-50%);background:#00000077;color:#ecf0f3;font-size:0.75rem;font-family:monospace;padding:3px 8px;border-radius:8px;z-index:200;pointer-events:none;text-align:center;line-height:1.4;';
-    hud.innerHTML = 'PING: --ms<br>RB: --%';
-    document.body.appendChild(hud);
-
     clearInterval(pingHudInterval);
     pingHudInterval = setInterval(() => {
         try {
-            // Pegar o canvas de network do HaxBall
-            const networkCanvas = body.querySelector('canvas.graph') || body.querySelector('[data-hook="network"] canvas') || body.querySelector('.network-view canvas');
+            // Pegar o elemento de network nativo do HaxBall
+            const networkView = body.querySelector('.network-view') ||
+                                body.querySelector('[data-hook="network"]') ||
+                                body.querySelector('.graph-view');
+            if (!networkView) return;
 
-            // Tentar ler ping direto do DOM — HaxBall expõe em elementos de texto
-            const pingEl = body.querySelector('[data-hook="ping"]') || body.querySelector('.ping');
-            const redBarEl = body.querySelector('[data-hook="red-bar"]') || body.querySelector('.red-bar') || body.querySelector('[data-hook="packet-loss"]');
+            // Já injetamos, pula
+            if (networkView.getAttribute('data-mobilized')) return;
+            networkView.setAttribute('data-mobilized', '1');
 
-            let pingVal = '--';
-            let rbVal = '--';
+            // Mostrar e reposicionar
+            networkView.style.cssText += ';display:block!important;position:fixed!important;bottom:4px!important;right:4px!important;left:auto!important;top:auto!important;width:90px!important;height:50px!important;opacity:0.85;z-index:150;pointer-events:none;transform:none!important;';
 
-            if (pingEl) {
-                pingVal = pingEl.textContent.replace(/[^0-9]/g, '');
-            }
-            if (redBarEl) {
-                rbVal = redBarEl.textContent.replace(/[^0-9.]/g, '');
-            }
-
-            // Fallback: tentar via RTCPeerConnection se disponível
-            if (pingVal === '--') {
-                const statsEl = body.querySelector('.game-state-view .ping') ||
-                                body.querySelector('.network') ||
-                                body.querySelector('[class*="ping"]') ||
-                                body.querySelector('[class*="latency"]');
-                if (statsEl) pingVal = statsEl.textContent.replace(/[^0-9]/g, '');
+            // Escalar o canvas interno se existir
+            const canvas = networkView.querySelector('canvas');
+            if (canvas) {
+                canvas.style.cssText += ';width:90px!important;height:50px!important;';
             }
 
-            // Colorir ping
-            const ping = parseInt(pingVal);
-            let pingColor = '#2ecc71';
-            if (ping > 100) pingColor = '#f39c12';
-            if (ping > 200) pingColor = '#c13535';
-
-            const rb = parseFloat(rbVal);
-            let rbColor = '#2ecc71';
-            if (rb > 1) rbColor = '#f39c12';
-            if (rb > 5) rbColor = '#c13535';
-
-            hud.innerHTML = `<span style="color:${pingColor}">PING: ${pingVal === '--' ? '--' : pingVal + 'ms'}</span><br><span style="color:${rbColor}">RB: ${rbVal === '--' ? '--' : rbVal + '%'}</span>`;
+            clearInterval(pingHudInterval);
         } catch {}
-    }, 1000);
+    }, 500);
 }
 
 const chatHistoryPanel = document.createElement("div");
