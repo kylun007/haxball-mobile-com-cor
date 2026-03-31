@@ -61,7 +61,7 @@ const aboutHandler = document.createElement("div");
 
 const inputOptionsHandler = document.createElement("div");
 
-const config = { childList: true, subtree: true };
+const config = { childList: true, subtree: false };
 
 ///////////////////////////////////////// VARIABLES /////////////////////////////////////////
 
@@ -168,14 +168,25 @@ function init() {
     hideButtons.remove();
 
     //Mutation observer
-    const observer = new MutationObserver(function(mutationsList, observer) {
-        try {
-            updateUI();
-            updatedChat();
-        } catch {}
+    let uiDebounce = null;
+    const observer = new MutationObserver(function(mutationsList) {
+        // Só roda updateUI se mudou a estrutura principal (view trocou)
+        clearTimeout(uiDebounce);
+        uiDebounce = setTimeout(() => {
+            try { updateUI(); } catch {}
+        }, 100);
     });
     try { updateUI() } catch {}
     observer.observe(body, config);
+
+    // Observer separado só pro chat, mais leve
+    const chatObserver = new MutationObserver(function() {
+        try { updatedChat(); } catch {}
+    });
+    try {
+        const logEl = body.querySelector('[data-hook="log-contents"]') || body.querySelector('.log-contents');
+        if (logEl) chatObserver.observe(logEl, { childList: true, subtree: false });
+    } catch {}
 
     gameFrame.head.innerHTML += "<style>button{display: }</style>";
     aboutHandler.setAttribute('data-hook', 'about');
@@ -657,20 +668,19 @@ function setupPingHUD() {
     clearInterval(pingHudInterval);
     pingHudInterval = setInterval(() => {
         try {
-            // Pegar o elemento de network nativo do HaxBall
             const networkView = body.querySelector('.network-view') ||
                                 body.querySelector('[data-hook="network"]') ||
                                 body.querySelector('.graph-view');
             if (!networkView) return;
 
-            // Já injetamos, pula
-            if (networkView.getAttribute('data-mobilized')) return;
+            if (networkView.getAttribute('data-mobilized')) {
+                clearInterval(pingHudInterval);
+                return;
+            }
             networkView.setAttribute('data-mobilized', '1');
 
-            // Mostrar e reposicionar
             networkView.style.cssText += ';display:block!important;position:fixed!important;bottom:4px!important;right:4px!important;left:auto!important;top:auto!important;width:90px!important;height:50px!important;opacity:0.85;z-index:150;pointer-events:none;transform:none!important;';
 
-            // Escalar o canvas interno se existir
             const canvas = networkView.querySelector('canvas');
             if (canvas) {
                 canvas.style.cssText += ';width:90px!important;height:50px!important;';
@@ -678,7 +688,7 @@ function setupPingHUD() {
 
             clearInterval(pingHudInterval);
         } catch {}
-    }, 500);
+    }, 2000);
 }
 
 const chatHistoryPanel = document.createElement("div");
