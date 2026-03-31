@@ -45,7 +45,7 @@ const tips = [
     "Tip: have fun and enjoy the game; a positive attitude enhances performance."
 ];
 
-const constrolsStyleBase = "#joystick,#kick{z-index:100;bottom:CONTROLS_MARGINvw}.neo{opacity:CONTROLS_OPACITY;background-color:#c2c2c255;box-shadow:6px 6px 10px 0 #a5abb133,-5px -5px 9px 0 #a5abb133;color:#dedede55;font-weight:bolder;font-size:1.5rem}.sizer{width:CONTROLS_WIDTH%;aspect-ratio: 1 / 1;}#joystick{left:CONTROLS_MARGIN%;overflow:visible}#thumb{width:40%;height:40%;background-color:#ecf0f3cc}#kick{right:CONTROLS_MARGIN%}button.neo:active{opacity:KICK_OPACITY}";
+const constrolsStyleBase = "#joystick,#kick{z-index:100;bottom:CONTROLS_MARGINvw}.neo{opacity:CONTROLS_OPACITY;background-color:#c2c2c255;box-shadow:6px 6px 10px 0 #a5abb133,-5px -5px 9px 0 #a5abb133;color:#dedede55;font-weight:bolder;font-size:1.5rem}.sizer{width:CONTROLS_WIDTH%;aspect-ratio: 1 / 1;}#joystick{left:CONTROLS_MARGIN%;overflow:hidden;position:absolute}#thumb{width:40%;height:40%;background-color:#ecf0f3cc;position:absolute}#kick{right:CONTROLS_MARGIN%}button.neo:active{opacity:KICK_OPACITY}";
 
 const countryFilterHandler = document.createElement('style');
 const hideButtons = document.createElement('style');
@@ -765,14 +765,15 @@ function updateJoystick(touch) {
 
     const angle = Math.atan2(deltaY, deltaX);
     const distance = Math.hypot(deltaX, deltaY);
-    const maxRadius = joystick.clientWidth / 2;
+    const maxRadius = (joystick.clientWidth / 2) - (thumb.clientWidth / 2);
     const clampedDistance = Math.min(maxRadius, distance);
 
-    const thumbX = centerX + clampedDistance * Math.cos(angle);
-    const thumbY = centerY + clampedDistance * Math.sin(angle);
+    // Posição relativa ao centro do joystick
+    const thumbOffsetX = clampedDistance * Math.cos(angle);
+    const thumbOffsetY = clampedDistance * Math.sin(angle);
 
-    thumb.style.left = thumbX - rect.left - thumb.clientWidth / 2 + 'px';
-    thumb.style.top = thumbY - rect.top - thumb.clientHeight / 2 + 'px';
+    thumb.style.left = (joystick.clientWidth / 2 + thumbOffsetX - thumb.clientWidth / 2) + 'px';
+    thumb.style.top  = (joystick.clientHeight / 2 + thumbOffsetY - thumb.clientHeight / 2) + 'px';
 
     const deadZone = 0.15;
     const normalized = Math.min(clampedDistance / maxRadius, 1);
@@ -786,11 +787,8 @@ function updateJoystick(touch) {
     const diagonalThreshold = 30;
 
     let keys = "";
-    // Horizontal
     if (angleInDegrees < 90 - diagonalThreshold || angleInDegrees > 270 + diagonalThreshold) keys += "d";
     else if (angleInDegrees > 90 + diagonalThreshold && angleInDegrees < 270 - diagonalThreshold) keys += "a";
-    // Vertical
-    if (angleInDegrees > 360 - (90 - diagonalThreshold) || angleInDegrees < 90 - diagonalThreshold) {} // só horizontal
     if (angleInDegrees > diagonalThreshold && angleInDegrees < 180 - diagonalThreshold) keys += "s";
     else if (angleInDegrees > 180 + diagonalThreshold && angleInDegrees < 360 - diagonalThreshold) keys += "w";
 
